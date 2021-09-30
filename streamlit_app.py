@@ -7,7 +7,7 @@ import streamlit as st
 from bs4 import BeautifulSoup
 from google_trans_new import google_translator
 from googletrans import Translator
- 
+
 show_spinner = False
 
 headers = {
@@ -442,7 +442,7 @@ def main():
 
     # Checkbox - English Tranlsation
     to_english = st.checkbox("English Translation")
-    df["english"] = pd.Series()
+    df["english"] = pd.Series(dtype=object)
     if to_english:
         pt_conjugations = df["full_conjugation_reverso"].to_list()
         df["english"] = multi_pt_to_en(pt_conjugations)
