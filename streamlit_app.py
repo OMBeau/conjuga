@@ -5,6 +5,7 @@ import pandas as pd
 import requests
 import streamlit as st
 from bs4 import BeautifulSoup
+from google_trans_new import google_translator
 from googletrans import Translator
 
 show_spinner = False
@@ -128,18 +129,17 @@ def en_to_pt_goog(translator, text_en):
     return translator.translate(text_en, src="en", dest="pt").text
 
 
-def pt_to_en_goog_multi(translator, text):
-    return translator.translate(text, src="pt", dest="en").text
+def pt_to_en_new(translator, text):
+    # uses google_trans_new lib with translator = google_translator
+    return translator.translate(text, lang_src="pt", lang_tgt="en")
 
 
 @st.cache(show_spinner=show_spinner)
-def multi_pt_to_en_goog(pt_conjugations):
-    translator_goog = Translator()
+def multi_pt_to_en(pt_conjugations):
+    translator = google_translator(timeout=5)  # instantiate once
     pool = ThreadPool(8)  # Threads
     try:
-        english_vals = pool.map(
-            partial(pt_to_en_goog_multi, translator_goog), pt_conjugations
-        )
+        english_vals = pool.map(partial(pt_to_en_new, translator), pt_conjugations)
     except Exception as e:
         raise e
     pool.close()
@@ -445,8 +445,7 @@ def main():
     df["english"] = pd.Series(dtype=object)
     if to_english:
         pt_conjugations = df["full_conjugation_reverso"].to_list()
-        # df["english"] = multi_pt_to_en(pt_conjugations)
-        df["english"] = multi_pt_to_en_goog(pt_conjugations)
+        df["english"] = multi_pt_to_en(pt_conjugations)
 
     # Checkbox - Verb with Prefix
     with_prefix = st.checkbox("Verb with Prefix")
