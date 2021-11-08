@@ -8,41 +8,10 @@ from bs4 import BeautifulSoup
 from google_trans_new import google_translator
 from googletrans import Translator
 
-show_spinner = False
-
-headers = {
+SHOW_SPINNER = False
+PRONOUNS = ["eu", "tu", "ele/ela/você", "nós", "vós", "eles/elas/vocês"]
+HEADERS = {
     "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_11_2) AppleWebKit/601.3.9 (KHTML, like Gecko) Version/9.0.2 Safari/601.3.9"
-}
-
-rename_conjuga = {
-    ("Indicativo", "Pretérito imperfeito"): ("Indicativo", "Pretérito Imperfeito"),
-    ("Indicativo", "Pret. mais-que-perfeito"): (
-        "Indicativo",
-        "Pretérito Mais-que-Perfeito",
-    ),
-    ("Indicativo", "Futuro /Futuro do presente"): (
-        "Indicativo",
-        "Futuro do Presente Simples",
-    ),
-    ("Indicativo", "CONDICIONAL /Futuro do pretérito"): (
-        "Condicional",
-        "Futuro do Pretérito Simples",
-    ),
-    ("Conjuntivo / Subjuntivo", "Pretérito imperfeito"): (
-        "Conjuntivo / Subjuntivo",
-        "Pretérito Imperfeito",
-    ),
-    ("Conjuntivo / Subjuntivo", "Pretérito imperfeito"): (
-        "Conjuntivo / Subjuntivo",
-        "Pretérito Imperfeito",
-    ),
-    ("Infinitivo Pessoal", None): ("Infinitivo", "Pessoal"),
-}
-
-rename_reverso = {
-    ("Infinitivo", ""): ("Infinitivo", "Pessoal"),
-    ("Imperativo", ""): ("Imperativo", "Afirmativo"),
-    ("Imperativo Negativo", ""): ("Imperativo", "Negativo"),
 }
 
 
@@ -63,23 +32,23 @@ def rename_d_indexes(verb_dict, rename_dict):
     return verb_d_new
 
 
-@st.cache(hash_funcs={BeautifulSoup: lambda _: None}, show_spinner=show_spinner)
+@st.cache(hash_funcs={BeautifulSoup: lambda _: None}, show_spinner=SHOW_SPINNER)
 def conjuga_me(verb):
     url = f"https://conjuga-me.net/verbo-{verb}"
-    response = requests.get(url, headers=headers)
+    response = requests.get(url, headers=HEADERS)
     return BeautifulSoup(response.content, "html.parser")
 
 
-@st.cache(hash_funcs={BeautifulSoup: lambda _: None}, show_spinner=show_spinner)
+@st.cache(hash_funcs={BeautifulSoup: lambda _: None}, show_spinner=SHOW_SPINNER)
 def conjuga_reverso(verb):
     url = f"https://conjugator.reverso.net/conjugation-portuguese-verb-{verb}.html"
-    response = requests.get(url)
+    response = requests.get(url, headers=HEADERS)
     return BeautifulSoup(response.content, "html.parser")
 
 
 def contexto_reverso(verb):
     url = f"https://context.reverso.net/translation/portuguese-english/{verb}"
-    response = requests.get(url)
+    response = requests.get(url, headers=HEADERS)
     return BeautifulSoup(response.content, "html.parser")
 
 
@@ -87,7 +56,7 @@ def synonyms_reverso(verb):
     pass
 
 
-@st.cache(show_spinner=show_spinner)
+@st.cache(show_spinner=SHOW_SPINNER)
 def get_target_verb(verb):
     soup = conjuga_reverso(verb)
     if target_verb := soup.find(id="ch_lblVerb"):
@@ -114,17 +83,17 @@ def english_meanings_short(verb):
         return None
 
 
-@st.cache(hash_funcs={Translator: lambda _: None}, show_spinner=show_spinner)
+@st.cache(hash_funcs={Translator: lambda _: None}, show_spinner=SHOW_SPINNER)
 def get_translator():
     return Translator()
 
 
-@st.cache(hash_funcs={Translator: lambda _: None}, show_spinner=show_spinner)
+@st.cache(hash_funcs={Translator: lambda _: None}, show_spinner=SHOW_SPINNER)
 def pt_to_en_goog(text, translator):
     return translator.translate(text, src="pt", dest="en").text
 
 
-@st.cache(hash_funcs={Translator: lambda _: None}, show_spinner=show_spinner)
+@st.cache(hash_funcs={Translator: lambda _: None}, show_spinner=SHOW_SPINNER)
 def en_to_pt_goog(translator, text_en):
     return translator.translate(text_en, src="en", dest="pt").text
 
@@ -134,7 +103,7 @@ def pt_to_en_new(translator, text):
     return translator.translate(text, lang_src="pt", lang_tgt="en")
 
 
-@st.cache(show_spinner=show_spinner)
+@st.cache(show_spinner=SHOW_SPINNER)
 def multi_pt_to_en(pt_conjugations):
     translator = google_translator(timeout=5)  # instantiate once
     pool = ThreadPool(8)  # Threads
@@ -228,7 +197,6 @@ def get_verb_dict_reverso(soup):  # sourcery no-metrics
 
     soup = soup.find(class_="result-block-api")
     d = {}
-    pronouns = ["eu", "tu", "ele/ela/você", "nós", "vós", "eles/elas/vocês"]
     modo = ""
     for i, div in enumerate(soup.find_all("div")):
 
@@ -272,7 +240,7 @@ def get_verb_dict_reverso(soup):  # sourcery no-metrics
                 full_conjugation = " ".join(full_conjugation)
 
                 if modo in ["Infinitivo", "Imperativo", "Imperativo Negativo"]:
-                    pronoun = pronouns[p_idx]
+                    pronoun = PRONOUNS[p_idx]
                     full_conjugation += f" ({pronoun})"
 
                 # found_verb boolean
@@ -308,22 +276,51 @@ def verb_to_df(verb_dict, rename_dict):
     )
 
 
-@st.cache(show_spinner=show_spinner)
+@st.cache(show_spinner=SHOW_SPINNER)
 def process_table_conjuga(target_verb):
+    rename_conjuga = {
+        ("Indicativo", "Pretérito imperfeito"): ("Indicativo", "Pretérito Imperfeito"),
+        ("Indicativo", "Pret. mais-que-perfeito"): (
+            "Indicativo",
+            "Pretérito Mais-que-Perfeito",
+        ),
+        ("Indicativo", "Futuro /Futuro do presente"): (
+            "Indicativo",
+            "Futuro do Presente Simples",
+        ),
+        ("Indicativo", "CONDICIONAL /Futuro do pretérito"): (
+            "Condicional",
+            "Futuro do Pretérito Simples",
+        ),
+        ("Conjuntivo / Subjuntivo", "Pretérito imperfeito"): (
+            "Conjuntivo / Subjuntivo",
+            "Pretérito Imperfeito",
+        ),
+        ("Conjuntivo / Subjuntivo", "Pretérito imperfeito"): (
+            "Conjuntivo / Subjuntivo",
+            "Pretérito Imperfeito",
+        ),
+        ("Infinitivo Pessoal", None): ("Infinitivo", "Pessoal"),
+    }
     soup_conjuga = conjuga_me(target_verb)
     verb_dict_conjuga = get_verb_dict_conjuga(soup_conjuga)
     df_conjuga = verb_to_df(verb_dict_conjuga, rename_conjuga)
     return df_conjuga.drop(columns=["prefix", "suffix"])
 
 
-@st.cache(show_spinner=show_spinner)
+@st.cache(show_spinner=SHOW_SPINNER)
 def process_table_reverso(verb):
+    rename_reverso = {
+        ("Infinitivo", ""): ("Infinitivo", "Pessoal"),
+        ("Imperativo", ""): ("Imperativo", "Afirmativo"),
+        ("Imperativo Negativo", ""): ("Imperativo", "Negativo"),
+    }
     soup_reverso = conjuga_reverso(verb)
     verb_dict_reverso = get_verb_dict_reverso(soup_reverso)
     return verb_to_df(verb_dict_reverso, rename_reverso)
 
 
-@st.cache(show_spinner=show_spinner)
+@st.cache(show_spinner=SHOW_SPINNER)
 def process_table_combined(df_conjuga, df_reverso):
     return df_reverso.merge(
         df_conjuga,
