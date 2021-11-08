@@ -7,6 +7,8 @@ import streamlit as st
 from bs4 import BeautifulSoup
 from google_trans_new import google_translator
 from googletrans import Translator
+from moto import mock_s3
+from aws import s3_bucket
 
 SHOW_SPINNER = False
 PRONOUNS = ["eu", "tu", "ele/ela/você", "nós", "vós", "eles/elas/vocês"]
@@ -96,6 +98,11 @@ def pt_to_en_goog(text, translator):
 @st.cache(hash_funcs={Translator: lambda _: None}, show_spinner=SHOW_SPINNER)
 def en_to_pt_goog(translator, text_en):
     return translator.translate(text_en, src="en", dest="pt").text
+
+
+@st.cache(hash_funcs={s3_bucket: lambda _: None})
+def get_verb_dict_from_s3(s3_b, s3_verb_path):
+    return s3_b.dict_from_s3(s3_verb_path)
 
 
 def pt_to_en_new(translator, text):
@@ -400,7 +407,15 @@ def table_html_with_soup(df):
     return str(soup.prettify(formatter="html"))
 
 
+# @mock_s3
 def main():
+
+    s3_b = s3_bucket("us-east-1", "streamlit-conjuga")
+
+    # if bucket does not exist, create
+    # if s3_b.creation_date() is None:
+    #     s3_b.create()
+    #     st.write("Created s3_bucket")
 
     verb = st.text_input("Verb in PT").strip()
 
@@ -411,25 +426,44 @@ def main():
         return
 
     translator_goog = get_translator()
-
-    meaning = pt_to_en_goog(target_verb, translator_goog)
-    st.markdown(f"### Root Verb: **{target_verb}**  ({meaning})")
-
     text_en = st.sidebar.text_input("English to Portugese")
     if text_en:
         en_to_pt = en_to_pt_goog(translator_goog, text_en)
         st.sidebar.write(en_to_pt)
 
-    # Prep Conjuga Table
-    df_conjuga = process_table_conjuga(target_verb)
+    s3_verb_path = f"{s3_b.verbs_fld}{target_verb}.json"
 
-    # Prep Reverso Table
-    df_reverso = process_table_reverso(verb)
+    # verb_dict, df_main = get_verb_dict_and_df(
+    #     s3_b, verb, target_verb, translator_goog, s3_verb_path
+    # )
 
-    # Combine Tables
-    df = process_table_combined(
-        df_conjuga, df_reverso
-    ).copy()  # copy to prevent cache mutation
+    if s3_b.obj_exists(s3_verb_path):
+        verb_dict = get_verb_dict_from_s3(s3_b, s3_verb_path)
+        df = pd.DataFrame.from_dict(verb_dict["df"])
+
+    else:
+        # Prep Conjuga Table
+        df_conjuga = process_table_conjuga(target_verb)
+
+        # Prep Reverso Table
+        df_reverso = process_table_reverso(verb)
+
+        # Combine Tables
+        df = process_table_combined(
+            df_conjuga, df_reverso
+        ).copy()  # copy to prevent cache mutation
+
+        pt_conjugations = df["full_conjugation_reverso"].to_list()
+        df["english"] = multi_pt_to_en(pt_conjugations)
+
+        verb_dict = {
+            "meaning": pt_to_en_goog(target_verb, translator_goog),
+            "df": df.to_dict(),
+        }
+
+        s3_b.dict_to_s3(s3_verb_path, verb_dict)
+
+    st.markdown(f"### Root Verb: **{target_verb}**  ({verb_dict['meaning']})")
 
     # Sidebar - Select Modo
     df = sidebar_selections(df, "modo")
@@ -439,10 +473,9 @@ def main():
 
     # Checkbox - English Tranlsation
     to_english = st.checkbox("English Translation")
-    df["english"] = pd.Series(dtype=object)
-    if to_english:
-        pt_conjugations = df["full_conjugation_reverso"].to_list()
-        df["english"] = multi_pt_to_en(pt_conjugations)
+    # df["english"] = pd.Series(dtype=object)
+    # if to_english:
+    #     df["english"] = verb_dict["english"]
 
     # Checkbox - Verb with Prefix
     with_prefix = st.checkbox("Verb with Prefix")
