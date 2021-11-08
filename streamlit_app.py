@@ -494,11 +494,13 @@ def main():
         ],
     ).reindex(index=["eu", "tu", "ele/ela/você", "nós", "vós", "eles/elas/vocês"])
 
-    if st.checkbox('Drop "vós"'):
-        df = df.drop("vós")
+    transpose = st.checkbox("Transpose")
+
+    if hide_pronouns := st.multiselect("Hide Pronouns", PRONOUNS):
+        df = df.drop(hide_pronouns)
 
     # Checkbox - Transpose
-    if st.checkbox("Transpose"):
+    if transpose:
 
         idx = pd.IndexSlice
         for c in df.droplevel(0, axis=1).columns.unique():
@@ -509,25 +511,29 @@ def main():
             st.markdown(f"### {col[1]} - {col[2]}")
 
             dff_style = style_table(dff)
+            dff_style = dff_style.hide_columns()
 
             if with_prefix:
                 dff_style = dff_style.hide_index()
 
-            dff_html = dff_style.hide_columns().to_html()
-
             if to_english:
-                dff_en = style_table(dff, to_english)
-                dff_en = dff_en.hide_index().hide_columns()
+                dff_style_en = style_table(dff, to_english)
+                dff_style_en = dff_style_en.hide_index().hide_columns()
+                dff_style_en = dff_style_en.set_table_attributes(
+                    "style='display:inline'"
+                )
 
                 dff_style = dff_style.set_table_attributes("style='display:inline'")
-                dff_en = dff_en.set_table_attributes("style='display:inline'")
 
-                dff_html = dff_style.to_html() + dff_en.to_html()
+                dff_html = dff_style.to_html() + dff_style_en.to_html()
+            else:
+                dff_html = dff_style.to_html()
 
             st.markdown(
                 dff_html,
                 unsafe_allow_html=True,
             )
+
     else:
         df = style_table(df, to_english)
 
@@ -543,8 +549,18 @@ def main():
         )
 
 
+def login_page():
+    pass
+
+
 if __name__ == "__main__":
+
     st.set_page_config(
         page_title="Conjuga", layout="wide", initial_sidebar_state="expanded"
     )
+
+    login_expander = st.sidebar.expander("Login")
+    name = login_expander.text_input("Name")
+    passw = login_expander.text_input("Password", type="password")
+
     main()
