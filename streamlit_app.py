@@ -485,7 +485,7 @@ def main():
                     df_conjuga, df_reverso
                 ).copy()  # copy to prevent cache mutation
 
-            with st.spinner("Tranlating to English"):
+            with st.spinner("Translating to English"):
                 # Translate conjugations to English column.
                 pt_conjugations = df["full_conjugation_reverso"].to_list()
                 df["english"] = multi_pt_to_en(pt_conjugations)
@@ -589,8 +589,8 @@ def main():
         )
 
 
-def login_page():
-    pass
+# def login_page():
+#     pass
 
 
 if __name__ == "__main__":
@@ -599,8 +599,8 @@ if __name__ == "__main__":
         page_title="Conjuga", layout="wide", initial_sidebar_state="expanded"
     )
 
-    login_expander = st.sidebar.expander("Login")
-    name = login_expander.text_input("Name")
-    passw = login_expander.text_input("Password", type="password")
+    # login_expander = st.sidebar.expander("Login")
+    # name = login_expander.text_input("Name")
+    # passw = login_expander.text_input("Password", type="password")
 
     main()
