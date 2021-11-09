@@ -7,8 +7,11 @@ import streamlit as st
 from bs4 import BeautifulSoup
 from google_trans_new import google_translator
 from googletrans import Translator
-from moto import mock_s3
+
 from aws import s3_bucket
+
+# from moto import mock_s3
+
 
 SHOW_SPINNER = False
 PRONOUNS = ["eu", "tu", "ele/ela/você", "nós", "vós", "eles/elas/vocês"]
@@ -100,7 +103,7 @@ def en_to_pt_goog(translator, text_en):
     return translator.translate(text_en, src="en", dest="pt").text
 
 
-@st.cache(hash_funcs={s3_bucket: lambda _: None})
+@st.cache(hash_funcs={s3_bucket: lambda _: None}, show_spinner=SHOW_SPINNER)
 def get_verb_dict_from_s3(s3_b, s3_verb_path):
     return s3_b.dict_from_s3(s3_verb_path)
 
@@ -436,6 +439,7 @@ def main():
 
     s3_b = s3_bucket("us-east-1", "streamlit-conjuga")
 
+    ### SINCE ALREADY CREATED, COMMMENT THIS OUT ###
     # if bucket does not exist, create
     # if s3_b.creation_date() is None:
     #     s3_b.create()
