@@ -263,13 +263,37 @@ def get_verb_dict_reverso(soup):  # sourcery no-metrics
     return d
 
 
+def found_verb_list(verb):
+    # Scrapes from Reverso and identifies which verb conjugation
+    # is being looked up. Sends column booleans back as list.
+    soup_full = conjuga_reverso(verb)
+    soup = soup_full.find(class_="result-block-api")
+    found_verb_list = []
+    modo = ""
+    for div in soup.find_all("div"):
+        # Get block Modo
+        if div["class"][0] == "word-wrap-title":
+            modo = div.text.strip()
+
+        # Skip divs with particular Modo
+        if modo in ["Particípio", "Gerúndio"]:
+            continue
+
+        # Get found_verb boolean.
+        if div["class"][0] == "blue-box-wrap":
+            for p in div.find_all("li"):
+                found_verb = bool(p.find(class_="hglhOver"))
+                found_verb_list.append(found_verb)
+
+    return found_verb_list
+
+
 def flatten_dict(d):
     reformed_dict = {}
     for key0, dict0 in d.items():
         for key1, dict1 in dict0.items():
             for key2, values in dict1.items():
                 reformed_dict[(key0, key1, key2)] = values
-
     return reformed_dict
 
 
@@ -433,35 +457,41 @@ def main():
 
     s3_verb_path = f"{s3_b.verbs_fld}{target_verb}.json"
 
-    # verb_dict, df_main = get_verb_dict_and_df(
-    #     s3_b, verb, target_verb, translator_goog, s3_verb_path
-    # )
-
     if s3_b.obj_exists(s3_verb_path):
+        # if s3_b.obj_exists(s3_verb_path) and not st.checkbox("ReLoad"):
+
         verb_dict = get_verb_dict_from_s3(s3_b, s3_verb_path)
-        df = pd.DataFrame.from_dict(verb_dict["df"])
+        df = pd.DataFrame.from_dict(verb_dict["df"], "columns")
 
+        df["found_verb"] = found_verb_list(verb) if verb != target_verb else False
     else:
-        # Prep Conjuga Table
-        df_conjuga = process_table_conjuga(target_verb)
+        with st.spinner("Adding Verb to Database"):
+            with st.spinner("Preparing Table"):
+                # Prep Conjuga Table
+                df_conjuga = process_table_conjuga(target_verb)
 
-        # Prep Reverso Table
-        df_reverso = process_table_reverso(verb)
+                # Prep Reverso Table
+                df_reverso = process_table_reverso(verb)
 
-        # Combine Tables
-        df = process_table_combined(
-            df_conjuga, df_reverso
-        ).copy()  # copy to prevent cache mutation
+                # Combine Tables
+                df = process_table_combined(
+                    df_conjuga, df_reverso
+                ).copy()  # copy to prevent cache mutation
 
-        pt_conjugations = df["full_conjugation_reverso"].to_list()
-        df["english"] = multi_pt_to_en(pt_conjugations)
+            with st.spinner("Tranlating to English"):
+                # Translate conjugations to English column.
+                pt_conjugations = df["full_conjugation_reverso"].to_list()
+                df["english"] = multi_pt_to_en(pt_conjugations)
 
-        verb_dict = {
-            "meaning": pt_to_en_goog(target_verb, translator_goog),
-            "df": df.to_dict(),
-        }
+            # Create Verb Dict
+            verb_dict = {
+                "meaning": pt_to_en_goog(target_verb, translator_goog),
+                "df": df.drop(columns="found_verb").to_dict("list"),
+            }
 
-        s3_b.dict_to_s3(s3_verb_path, verb_dict)
+            with st.spinner("Updating Database"):
+                # Send Verb Dict to S3
+                s3_b.dict_to_s3(s3_verb_path, verb_dict)
 
     st.markdown(f"### Root Verb: **{target_verb}**  ({verb_dict['meaning']})")
 
