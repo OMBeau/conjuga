@@ -445,19 +445,22 @@ def main():
     #     s3_b.create()
     #     st.write("Created s3_bucket")
 
-    verb = st.text_input("Verb in PT").strip()
+    translator_goog = get_translator()
+    text_en = st.text_input("English to Portugese")
+    if text_en:
+        en_to_pt = en_to_pt_goog(translator_goog, text_en)
+        st.success(en_to_pt)
+
+    verb = st.text_input("Portugese Verb").strip()
+
+    if verb == "":
+        return
 
     target_verb = get_target_verb(verb)
 
     if not target_verb:
         st.error("Not valid Portugese verb form.")
         return
-
-    translator_goog = get_translator()
-    text_en = st.sidebar.text_input("English to Portugese")
-    if text_en:
-        en_to_pt = en_to_pt_goog(translator_goog, text_en)
-        st.sidebar.write(en_to_pt)
 
     s3_verb_path = f"{s3_b.verbs_fld}{target_verb}.json"
 
@@ -499,20 +502,23 @@ def main():
 
     st.markdown(f"### Root Verb: **{target_verb}**  ({verb_dict['meaning']})")
 
+    hide_pronouns_container = st.sidebar.container()
+
     # Sidebar - Select Modo
     df = sidebar_selections(df, "modo")
 
     # Sidebar - Select Tense
     df = sidebar_selections(df, "tense")
 
+    col1, col2, col3 = st.columns(3)
     # Checkbox - English Tranlsation
-    to_english = st.checkbox("English Translation")
+    to_english = col1.checkbox("English Translation")
     # df["english"] = pd.Series(dtype=object)
     # if to_english:
     #     df["english"] = verb_dict["english"]
 
     # Checkbox - Verb with Prefix
-    with_prefix = st.checkbox("Verb with Prefix")
+    with_prefix = col2.checkbox("Verb with Prefix")
     if not with_prefix:
         df["full_conjugation_reverso"] = df.apply(remove_prefix, axis=1)
 
@@ -528,9 +534,9 @@ def main():
         ],
     ).reindex(index=["eu", "tu", "ele/ela/você", "nós", "vós", "eles/elas/vocês"])
 
-    transpose = st.checkbox("Transpose")
+    transpose = col3.checkbox("Transpose")
 
-    if hide_pronouns := st.multiselect("Hide Pronouns", PRONOUNS):
+    if hide_pronouns := hide_pronouns_container.multiselect("Hide Pronouns", PRONOUNS):
         df = df.drop(hide_pronouns)
 
     # Checkbox - Transpose
