@@ -99,8 +99,15 @@ def pt_to_en_goog(text, translator):
 
 
 @st.cache(hash_funcs={Translator: lambda _: None}, show_spinner=SHOW_SPINNER)
-def en_to_pt_goog(translator, text_en):
-    return translator.translate(text_en, src="en", dest="pt").text
+def translate_goog(translator, text, src=None, dest=None):
+    detected_lang = translator.detect(text).lang
+    if not src:
+        src = detected_lang
+
+    if not dest:
+        dest = "en" if detected_lang == "pt" else "pt"
+
+    return translator.translate(text, src=src, dest=dest).text
 
 
 @st.cache(hash_funcs={s3_bucket: lambda _: None}, show_spinner=SHOW_SPINNER)
@@ -446,10 +453,11 @@ def main():
     #     st.write("Created s3_bucket")
 
     translator_goog = get_translator()
-    text_en = st.text_input("English to Portugese")
-    if text_en:
-        en_to_pt = en_to_pt_goog(translator_goog, text_en)
-        st.success(en_to_pt)
+    ep_expander = st.expander("Translator")
+    text = ep_expander.text_input("")
+    if text:
+        translated_text = translate_goog(translator_goog, text)
+        ep_expander.write(translated_text)
 
     verb = st.text_input("Portugese Verb").strip()
 
