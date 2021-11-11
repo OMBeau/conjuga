@@ -20,23 +20,6 @@ HEADERS = {
 }
 
 
-def rename_d_indexes(verb_dict, rename_dict):
-    verb_d_new = {}
-    for k0, v0 in verb_dict.items():
-        for k1, v1 in v0.items():
-            if (k0, k1) in rename_dict:
-                replace_val = rename_dict[(k0, k1)]
-                if replace_val[0] not in verb_d_new:
-                    verb_d_new[replace_val[0]] = {}
-                verb_d_new[replace_val[0]][replace_val[1]] = v1
-            else:
-                if k0 not in verb_d_new:
-                    verb_d_new[k0] = {}
-                verb_d_new[k0][k1] = v1
-
-    return verb_d_new
-
-
 @st.cache(hash_funcs={BeautifulSoup: lambda _: None}, show_spinner=SHOW_SPINNER)
 def conjuga_me(verb):
     url = f"https://conjuga-me.net/verbo-{verb}"
@@ -51,14 +34,14 @@ def conjuga_reverso(verb):
     return BeautifulSoup(response.content, "html.parser")
 
 
-def contexto_reverso(verb):
-    url = f"https://context.reverso.net/translation/portuguese-english/{verb}"
-    response = requests.get(url, headers=HEADERS)
-    return BeautifulSoup(response.content, "html.parser")
+# def contexto_reverso(verb):
+#     url = f"https://context.reverso.net/translation/portuguese-english/{verb}"
+#     response = requests.get(url, headers=HEADERS)
+#     return BeautifulSoup(response.content, "html.parser")
 
 
-def synonyms_reverso(verb):
-    pass
+# def synonyms_reverso(verb):
+#     pass
 
 
 @st.cache(show_spinner=SHOW_SPINNER)
@@ -70,22 +53,22 @@ def get_target_verb(verb):
         return None
 
 
-def english_meanings(verb):
-    # Banned IP
-    soup = contexto_reverso(verb)
-    if meanings := soup.find(id="translations-content"):
-        return meanings.text
-    else:
-        return None
-    # for m in meanings
+# def english_meanings(verb):
+#     # Banned IP
+#     soup = contexto_reverso(verb)
+#     if meanings := soup.find(id="translations-content"):
+#         return meanings.text
+#     else:
+#         return None
+#     # for m in meanings
 
 
-def english_meanings_short(verb):
-    soup = conjuga_reverso(verb)
-    if meanings := soup.find(id="list-translations"):
-        return meanings
-    else:
-        return None
+# def english_meanings_short(verb):
+#     soup = conjuga_reverso(verb)
+#     if meanings := soup.find(id="list-translations"):
+#         return meanings
+#     else:
+#         return None
 
 
 @st.cache(hash_funcs={Translator: lambda _: None}, show_spinner=SHOW_SPINNER)
@@ -93,19 +76,18 @@ def get_translator():
     return Translator()
 
 
-@st.cache(hash_funcs={Translator: lambda _: None}, show_spinner=SHOW_SPINNER)
-def pt_to_en_goog(text, translator):
-    return translator.translate(text, src="pt", dest="en").text
+# @st.cache(hash_funcs={Translator: lambda _: None}, show_spinner=SHOW_SPINNER)
+# def pt_to_en_goog(text, translator):
+#     return translator.translate(text, src="pt", dest="en").text
 
 
 @st.cache(hash_funcs={Translator: lambda _: None}, show_spinner=SHOW_SPINNER)
 def translate_goog(translator, text, src=None, dest=None):
-    detected_lang = translator.detect(text).lang
     if not src:
-        src = detected_lang
+        src = translator.detect(text).lang
 
     if not dest:
-        dest = "en" if detected_lang == "pt" else "pt"
+        dest = "en" if src == "pt" else "pt"
 
     return translator.translate(text, src=src, dest=dest).text
 
@@ -298,6 +280,23 @@ def found_verb_list(verb):
     return found_verb_list
 
 
+def rename_d_indexes(verb_dict, rename_dict):
+    verb_d_new = {}
+    for k0, v0 in verb_dict.items():
+        for k1, v1 in v0.items():
+            if (k0, k1) in rename_dict:
+                replace_val = rename_dict[(k0, k1)]
+                if replace_val[0] not in verb_d_new:
+                    verb_d_new[replace_val[0]] = {}
+                verb_d_new[replace_val[0]][replace_val[1]] = v1
+            else:
+                if k0 not in verb_d_new:
+                    verb_d_new[k0] = {}
+                verb_d_new[k0][k1] = v1
+
+    return verb_d_new
+
+
 def flatten_dict(d):
     reformed_dict = {}
     for key0, dict0 in d.items():
@@ -480,7 +479,7 @@ def main():
 
         df["found_verb"] = found_verb_list(verb) if verb != target_verb else False
     else:
-        with st.spinner("Adding Verb to Database"):
+        with st.spinner(f"Adding '{target_verb}' to Database"):
             with st.spinner("Preparing Table"):
                 # Prep Conjuga Table
                 df_conjuga = process_table_conjuga(target_verb)
@@ -500,7 +499,7 @@ def main():
 
             # Create Verb Dict
             verb_dict = {
-                "meaning": pt_to_en_goog(target_verb, translator_goog),
+                "meaning": translate_goog(translator_goog, target_verb, "pt", "en"),
                 "df": df.drop(columns="found_verb").to_dict("list"),
             }
 
@@ -510,6 +509,7 @@ def main():
 
     st.markdown(f"### Root Verb: **{target_verb}**  ({verb_dict['meaning']})")
 
+    # Reserve Hide Pronouns position in sidebar
     hide_pronouns_container = st.sidebar.container()
 
     # Sidebar - Select Modo
@@ -519,15 +519,12 @@ def main():
     df = sidebar_selections(df, "tense")
 
     col1, col2, col3 = st.columns(3)
+
     # Checkbox - English Tranlsation
     to_english = col1.checkbox("English Translation")
-    # df["english"] = pd.Series(dtype=object)
-    # if to_english:
-    #     df["english"] = verb_dict["english"]
 
     # Checkbox - Verb with Prefix
-    with_prefix = col2.checkbox("Verb with Prefix")
-    if not with_prefix:
+    if not (with_prefix := col2.checkbox("Verb with Prefix")):
         df["full_conjugation_reverso"] = df.apply(remove_prefix, axis=1)
 
     # Pivot table to show verb, irregular bool, and found_verb bool
@@ -540,15 +537,13 @@ def main():
             "irregular",
             "found_verb",
         ],
-    ).reindex(index=["eu", "tu", "ele/ela/você", "nós", "vós", "eles/elas/vocês"])
-
-    transpose = col3.checkbox("Transpose")
+    ).reindex(index=PRONOUNS)
 
     if hide_pronouns := hide_pronouns_container.multiselect("Hide Pronouns", PRONOUNS):
         df = df.drop(hide_pronouns)
 
     # Checkbox - Transpose
-    if transpose:
+    if col3.checkbox("Transpose"):
 
         idx = pd.IndexSlice
         for c in df.droplevel(0, axis=1).columns.unique():
